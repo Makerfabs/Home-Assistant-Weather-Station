@@ -1,0 +1,38 @@
+# Makerfabs
+i2c:
+  sda: 4
+  scl: 5
+
+sensor:
+  - platform: custom 
+    #UART RX GPIO21 GPIOTX22
+    lambda: |-
+      auto my_sensor = new MyCustomSensor();
+      App.register_component(my_sensor);
+      return {my_sensor->pm2_5_sensor};
+
+    sensors:
+    - name: "Makerfabs PM2.5 Sensor"
+      unit_of_measurement: ug/m3
+      accuracy_decimals: 1
+  
+  - platform: aht10
+    temperature:
+      name: "Makerfabs Temperature"
+    humidity:
+      name: "Makerfabs Humidity"
+    update_interval: 10s
+
+  - platform: pulse_counter
+    pin: 27
+    name: "Wind Speed"
+    unit_of_measurement: 'm/s'
+    filters:
+      - multiply: 0.002
+
+  - platform: bmp280
+    pressure:
+      name: "Outside Pressure"
+    address: 0x76
+    update_interval: 10s
+
