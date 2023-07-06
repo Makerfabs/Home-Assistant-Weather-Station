@@ -117,33 +117,32 @@ includes:
 
 Normally, HA recognizes this automatically, but if the home page has been manually modified, HA will never add any device display again.
 
-
-
 1. Go to the HA home page, click the three dots in the upper right corner, select Edit dashboard
 
-
+![](md_pic/15.jpg)
 
 2. The color of the interface changes, select the add card in the lower right corner.
 3. In the physical page there are many cards to choose from, here select a dial, click
 
-
+![](md_pic/16.jpg)
 
 4. In the dial card configuration page, select the entity, find the relevant content of MyWeatherStation
 
+![](md_pic/17.jpg)
+
+![](md_pic/18.jpg)
 
 5. Save.
 6. The way to add cards is the same as the use of HA, you can arrange the page by yourself.
 
-
+![](md_pic/19.jpg)
 
 7. Click Finish to exit editing
 
-
-
-
+![](md_pic/20.jpg)
 
 The reference interface is as follows:
 
- 
+![](md_pic/21.jpg)
 
 
