@@ -3,18 +3,24 @@ i2c:
   sda: 4
   scl: 5
 
-sensor:
-  - platform: custom 
-    #UART RX GPIO21 GPIOTX22
-    lambda: |-
-      auto my_sensor = new MyCustomSensor();
-      App.register_component(my_sensor);
-      return {my_sensor->pm2_5_sensor};
+uart:
+  id: uart_pm25
+  tx_pin: 22
+  rx_pin: 21
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
 
-    sensors:
-    - name: "Makerfabs PM2.5 Sensor"
-      unit_of_measurement: ug/m3
+sensor:
+  - platform: pmsx003
+    type: PMSX003
+    uart_id: uart_pm25
+    pm_2_5:
+      name: "Makerfabs PM2.5 Sensor"
+      unit_of_measurement: 'ug/m3'
       accuracy_decimals: 1
+    update_interval: 30s
   
   - platform: aht10
     temperature:
@@ -35,4 +41,3 @@ sensor:
       name: "Outside Pressure"
     address: 0x76
     update_interval: 10s
-
