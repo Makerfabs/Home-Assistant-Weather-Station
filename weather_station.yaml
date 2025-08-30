@@ -1,38 +1,162 @@
-# Makerfabs
+# Logs:
+#     ssap10组件轮询：5s
+#     风速          : 5s
+#     BMP280        : 10s
+#     AHT10         : 10s
+
+
+
+
+
+esphome:
+  name: ha-weather 
+  friendly_name: "HA Weather Station"
+  project:
+    name: "makerfabs.weather_station"
+    version: "1.0.0"
+
+# 外部组件配置
+external_components:
+  - source:
+      type: local
+      path: common_components
+    components: [ssap10]
+    refresh: never                    # 本地组件不需要刷新
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP_TASK_WDT: y
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: (int)30
+      CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0: y
+
+uart:
+  - id: ssap10_uart
+    rx_pin: GPIO21
+    tx_pin: GPIO22
+    baud_rate: 9600
+    data_bits: 8
+    stop_bits: 1
+    parity: NONE
+
+logger:
+  level: DEBUG
+  # logs:
+    # uart: INFO
+    # art.arduino_esp32: VERBOSE       # ESP32 UART驱动日志
+    # ssap10: DEBUG
+    # component: INFO      
+
+api:
+  encryption:
+    key: "XFB8BOHYUWJIPMDUTOiFrVUIFpTj3dwitLuwMCnhy3U="
+  # API服务注册
+  # services:
+  #   - service: restart_device
+  #     then:
+  #       - restart:
+
+ota:
+  - platform: esphome
+    password: "4bd8d398ff9f3b6559b89d6280451bb5"
+    # 安全模式配置
+    # safe_mode: true
+    # reboot_timeout: 10min
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+  fast_connect: true                  # 快速连接模式
+  reboot_timeout: 15min               # 重启超时时间
+  
+  ap:
+    ssid: "Ha-Weather Fallback Hotspot"
+    password: "nFY2nMgi9izu"
+
+captive_portal:
+
 i2c:
-  sda: 4
-  scl: 5
+  - id: i2c_bus
+    sda: GPIO4
+    scl: GPIO5
+    scan: true
+    frequency: 400kHz
 
 sensor:
-  - platform: custom 
-    #UART RX GPIO21 GPIOTX22
-    lambda: |-
-      auto my_sensor = new MyCustomSensor();
-      App.register_component(my_sensor);
-      return {my_sensor->pm2_5_sensor};
+  - platform: ssap10
+    name: "PM2.5 Concentration"
+    id: pm25_sensor
+    uart_id: ssap10_uart
+    update_interval: 5s
 
-    sensors:
-    - name: "Makerfabs PM2.5 Sensor"
-      unit_of_measurement: ug/m3
-      accuracy_decimals: 1
-  
   - platform: aht10
+    i2c_id: i2c_bus
     temperature:
-      name: "Makerfabs Temperature"
+      name: "Temperature"
+      id: temperature_sensor
+      accuracy_decimals: 1
+      unit_of_measurement: '°C'
+      device_class: temperature
     humidity:
-      name: "Makerfabs Humidity"
+      name: "Humidity" 
+      id: humidity_sensor
+      accuracy_decimals: 1
     update_interval: 10s
 
   - platform: pulse_counter
-    pin: 27
+    pin: 
+      number: GPIO27
+      mode:
+        input: true
+        pullup: true
     name: "Wind Speed"
+    id: wind_speed_sensor
     unit_of_measurement: 'm/s'
+    accuracy_decimals: 2              # 提高精度
+    update_interval: 5s
     filters:
-      - multiply: 0.002
+      - multiply: 0.002               # 转换系数
+      - sliding_window_moving_average: # 滑动窗口平均
+          window_size: 6
+          send_every: 3
 
-  - platform: bmp280
-    pressure:
-      name: "Outside Pressure"
+  # BMP280气压传感器配置
+  - platform: bmp280_i2c
+    i2c_id: i2c_bus
     address: 0x76
+    pressure:
+      name: "Atmospheric Pressure"
+      id: pressure_sensor
+      accuracy_decimals: 1
+    temperature:
+      name: "BMP280 Temperature"
+      id: bmp_temperature_sensor
+      accuracy_decimals: 1
+      unit_of_measurement: '°C'
+      device_class: temperature
     update_interval: 10s
+    # 传感器IIR滤波器配置
+    iir_filter: 16X
 
+  - platform: internal_temperature    # ESP32内部温度传感器
+    name: "ESP32 Internal Temperature"
+    id: esp_internal_temp
+
+  - platform: wifi_signal
+    name: "WiFi Signal Strength"
+    id: wifi_signal_sensor
+    update_interval: 60s
+
+  # 运行时间传感器
+  - platform: uptime
+    name: "Device Uptime"
+    id: uptime_sensor
+    update_interval: 60s
+
+
+# watchdog:
+#   timeout: 30s

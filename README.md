@@ -1,157 +1,207 @@
-# Makerfabs HA Weather Station
+# Home Assistant AC Dimmer
 
 ```c++
 /*
-Version:        V1.0
-Author:            Vincent
-Create Date:    2023/7/5
+Version:		V1.1
+Author:			Makerfabs
+Create Date:	2025/8/29
 Note:
+	
 
 */
 ```
 
-# Makerfabs
+
+## Makerfabs
 
 [Makerfabs home page](https://www.makerfabs.com/)
 
 [Makerfabs Wiki](https://wiki.makerfabs.com/)
 
 ## Intruduce
+
 [Product Link](https://www.makerfabs.com/weather-station-for-home-assistant-esphome.html)
 
 [Wiki Link](https://wiki.makerfabs.com/Weather_Station_for_Home_Assistant_ESPHome.html)
 
 
 
+## 1. Product Features
 
-# Equipping Items
-Install the Home assistant firmware of Raspberry PI, or other platforms, and ensure that you can log in to the management page.
+- **Main Controller**: ESP32
+- **Dimmer Controller**: STM32G030F6
+- **Power Supply**: On-board AC-DC module, no external DC power supply needed.
+- **Safety Design**: On-board relay to completely cut off current, preventing the "ghosting" or faint glow of some LEDs when off.
+- **Voltage Compatibility**: AC 110V ~ 230V, with automatic frequency adaptation.
+- **Maximum Load**: 2KW
 
-And install the ESPHome and File editor in the Add-on.
+## 2. Prerequisites
 
-Version of this document:
- 
-``` c
-ESPHome
-Current version: 2023.5.1
-File editor
-Current version: 5.6.0
+Before you begin, ensure you have the following ready.
+
+**Hardware**:
+
+- A Raspberry Pi (or other Linux host) with Docker and Docker Compose installed.
+- The Makerfabs Wrather Station module.
+- A USB Type-C data cable.
+- A screwdriver for wiring.
+
+**Software**:
+
+- An SSH client (e.g., PuTTY, Termius, or your system's built-in terminal).
+- A modern web browser (Chrome or Edge recommended).
+- **ESPHome Version**: This tutorial is based on `2025.7.x` or newer.
+
+**Configuration Files**:
+
+- Download the required ESPHome configuration files for the dimmer from the official Makerfabs Wiki or product page, which typically includes:
+  - `weather_station.yaml` (The main configuration file)
+  - A `common_components/` directory.
+
+## 3. Environment Setup: Docker Deployment
+
+We will use Docker Compose to manage the Home Assistant and ESPHome containers.
+
+1. Log in to your Raspberry Pi via SSH.
+2. Create a directory to store your Docker configurations, e.g., `~/docker`.
+3. Inside the `~/docker` directory, create a file named `docker-compose.yml` with the following content.
+
+```
+# docker-compose.yml
+
+version: '3'
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - /home/pi/docker/homeassistant/config:/config # Left side is host path, right is container path
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+
+  esphome:
+    container_name: esphome
+    image: "ghcr.io/esphome/esphome"
+    volumes:
+      - /home/pi/docker/esphome/config:/config # Left side is host path, right is container path
+      - /etc/localtime:/etc/localtime:ro
+    restart: always
+    privileged: true
+    network_mode: host
 ```
 
+**Note on `volumes`**: The path on the left of the colon (`:`) is the actual directory on your host machine (Raspberry Pi). Ensure these directories exist.
 
-Equipment Setup
+1. In the same directory as your `docker-compose.yml` file, run the following command to start the services:
 
-1. Open the HA management page and go to the ESPHome page.
+   ```
+   docker-compose up -d
+   ```
 
-![](md_pic/1.jpg)
+## 4. ESPHome Device Configuration
 
-2. Select NEW DEVICE.
-3. Select Continue.
-4. Set a name, such as MyWeatherStation.
+1. Open a web browser and navigate to your ESPHome web UI at `http://<YOUR_RASPBERRY_PI_IP>:6052`.
+   ![image-20250820110253207](https://easyimage.linwanrong.com/i/2025/08/20/i8fl6t-0.webp)
 
-![](md_pic/2.jpg)
+2. Click the **“NEW DEVICE”** button in the bottom-right corner, then click **“Continue”**.
 
-5. Select ESP32.
+3. Give your device a name (e.g., `weather_station`) and enter your Wi-Fi credentials.
 
-![](md_pic/3.jpg)
- 
-6. Select SKIP, you will return to the ESPHome page, you will see the device you just created.
-7. Select EDIT to enter the yaml file editing page
+   ![image-20250821165653536](https://easyimage.linwanrong.com/i/2025/08/21/re9o5v-0.webp)
 
-![](md_pic/4.jpg)
+4. On the device type selection screen, choose **“ESP32”**.
 
-8. Copy the code weather_station.yaml provided by Makerfabs to the end of the file.
+   ![image-20250820110410956](https://easyimage.linwanrong.com/i/2025/08/20/i9da9l-0.webp)
 
-![](md_pic/5.jpg)
+5. Click **“SKIP”** to bypass the initial installation and return to the ESPHome dashboard.
 
-9. And at the beginning of the file, friendly_name next to the line, copy:
+6. **Upload Custom Components**: Use an SCP client (like WinSCP) or the `scp` command-line tool to upload the entire `common_components` folder to your ESPHome config directory on the Raspberry Pi (e.g., `/home/pi/docker/esphome/config/`).
 
-``` yaml
-includes:
-- my_custom_sensor.h
-```
+7. **Edit the YAML Configuration File**:
 
-![](md_pic/6.jpg)
+   - Back in the ESPHome UI, click the **“EDIT”** button on the `ac_dimmer` card.
 
-10. Pay attention to indentation, there are excess indentation will report errors.
-11. Select SAVE, and exit the edit page
-12. Go to the File editor page
-13. Click the folder icon in the upper left corner
-14. Enter “config/esphome/”
-15. Create a new file named "my_custom_sensor.h".
-16. Copy the code my_custom_sensor.h provided by Makerfabs and save it
+   - At the top of the file, under `esphome:`, add the `external_components` declaration. **Pay attention to indentation**.
 
-![](md_pic/7.jpg)
+     ```
+     external_components:
+       - source:
+           type: local
+           path: common_components
+         components: [ssap10]
+         refresh: never
+     ```
 
-17. Go back to ESPHome's page, click the three dots in the lower-right corner of the card, and select Install.
+   - Next, copy the **entire** contents of the `weather_station.yaml` file provided by Makerfabs and paste it at the very end of the file.
 
-18. Select Manual Download, select Modern format, the console page will be displayed, please wait patiently for compilation.
+8. Click **“SAVE”** to save your changes, then click **“CLOSE”** to exit the editor.
 
-![](md_pic/8.jpg)
+## 5. Compiling and Flashing the Firmware
 
-19. After the bin file is downloaded, exit.
-20. Open https://web.esphome.io/?dashboard_install, go to the download page
+1. On the ESPHome dashboard, click the three dots on the `weather_station` card and select **“Install”**.
 
-![](md_pic/9.jpg)
+2. In the pop-up window, choose **“Manual Download”**, then select **“Modern format”**. ESPHome will begin compiling the firmware online. Please be patient.
 
-21. Select CONNECT. In the displayed page, select COM port.
+3. Once compilation is successful, your browser will automatically download a `.bin` firmware file.
 
-![](md_pic/10.jpg)
+   ![image-20250820140853527](https://easyimage.linwanrong.com/i/2025/08/20/namw84-0.webp)
 
-22. After the connection is successful, click INSTALL
+4. **Flashing the Firmware for the First Time**:
 
-![](md_pic/11.jpg)
+   - Connect the AC Dimmer module to your computer using the USB-C cable.
 
-23. Select the bin file you just downloaded on the pop-up page. Click Install and wait for the installation to complete. If the connection is not successful, hold down the Flash key, then press the Reset key, and then click Download again.
-24. download success, click, LOGS pop-up terminal interface, find IP information
+   - In your browser, navigate to the ESPHome Web Flasher: [**https://web.esphome.io/**](https://web.esphome.io/)
 
-![](md_pic/12.jpg)
+     ![image-20250820112428934](https://easyimage.linwanrong.com/i/2025/08/20/ildsc4-0.webp)
 
-25. Go back to the ESPHome page, select EDIT for your device, and go to the YAML edit page.
-26. Copy API: encryption key: the back of the content, such as “43 a0nyfb9py7aalga282lgikxkt5i7zhcmu8dhmjnea=”
-27. Return to the HA page, select Configuration, and select devices and services
-28. If HA automatically identifies the local device, click Configure to add the device automatically. If no, continue to add the device. This is related to the configuration of the HA router.
-29. Click on the bottom right corner to add integration, search for ESPHome, and select
-30. Enter the IP address you just obtained on the pop-up page, such as 192.168.1.57, and then submit.
-31. Enter the key.
+   - Click **“CONNECT”** and select the appropriate COM port for your device from the pop-up list.
 
-![](md_pic/13.jpg)
+     ![image-20250820120932734](https://easyimage.linwanrong.com/i/2025/08/20/k007nd-0.webp)
 
-32. The device has been added successfully
+   - After connecting, click **“INSTALL”**, choose the `.bin` file you just downloaded, and click **“INSTALL”** again to begin flashing.
 
-![](md_pic/14.jpg)
+     ![image-20250820112601438](https://easyimage.linwanrong.com/i/2025/08/20/imeluv-0.webp)
 
+   - **Flashing failed?** Press and hold the **“Flash”** button, then press and release the **“Reset”** button, and finally release the **“Flash”** button. Then try again.
 
-# HA UI Setup
+5. After a successful flash, click **“LOGS”** to view the device's output. Wait for it to connect to your Wi-Fi, and you will see its assigned IP address in the logs. Make a note of this IP address.
 
-Normally, HA recognizes this automatically, but if the home page has been manually modified, HA will never add any device display again.
+## 6. Home Assistant Integration
 
-1. Go to the HA home page, click the three dots in the upper right corner, select Edit dashboard
+1. Open your Home Assistant UI at `http://<YOUR_RASPBERRY_PI_IP>:8123`.
 
-![](md_pic/15.jpg)
+2. Home Assistant will often auto-discover new devices. If you see a notification, simply click **“CONFIGURE”**.
 
-2. The color of the interface changes, select the add card in the lower right corner.
-3. In the physical page there are many cards to choose from, here select a dial, click
+   ![image-20250820142307530](https://easyimage.linwanrong.com/i/2025/08/20/njaj7x-0.webp)
 
-![](md_pic/16.jpg)
+3. If the device is not discovered automatically, add it manually:
 
-4. In the dial card configuration page, select the entity, find the relevant content of MyWeatherStation
+   - Go to **“Settings”** > **“Devices & Services”**.
+   - Click **“ADD INTEGRATION”**, search for, and select **“ESPHome”**.
 
-![](md_pic/17.jpg)
+4. In the pop-up, enter the IP address of your device that you noted earlier, then click **“SUBMIT”**.
 
-![](md_pic/18.jpg)
+5. Next, Home Assistant will ask for the device's Encryption Key.
 
-5. Save.
-6. The way to add cards is the same as the use of HA, you can arrange the page by yourself.
+   - Go back to the ESPHome UI and click **“EDIT”** on your `weather_station` card.
 
-![](md_pic/19.jpg)
+   - In the YAML file, find the `api:` section and copy the long string of characters after `key:`.
 
-7. Click Finish to exit editing
+   - Paste this key into the Home Assistant input box and click **“SUBMIT”**.
 
-![](md_pic/20.jpg)
+     ![image-20250820142416697](https://easyimage.linwanrong.com/i/2025/08/20/njxgrl-0.webp)
 
-The reference interface is as follows:
+6. Once added, assign the device to an area and click **“FINISH”**.
 
-![](md_pic/21.jpg)
+1. ## 7. Home Assistant Dashboard Setup
 
-
+   1. Navigate to your main "Overview" dashboard in Home Assistant.
+   2. Click the three dots in the top-right corner and select **“Edit Dashboard”**.
+   3. Click the **“ADD CARD”** button in the bottom-right corner.
+   4. From the card selection list, choose a card type. For example, select the **“Gauge”** card.
+   5. In the card configuration screen, click the **“Entity”** dropdown and select the brightness entity for your AC Dimmer.
+   6. Click **“SAVE”**. You can repeat this process to add a "Light" card for an on/off toggle and brightness slider.
+   7. Finally, click **“DONE”** in the top-right corner to exit edit mode.
