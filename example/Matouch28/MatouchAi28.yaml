@@ -1,0 +1,595 @@
+# Logs:
+#     
+#     
+
+
+
+substitutions:
+  remote_fan_entity_id: fan.dimmeradruino_kitchen_lights
+
+esphome:
+  name: matouchai28-company
+  friendly_name: MatouchAi28-Company
+
+  on_boot: 
+    priority: -10
+    then:
+      - lambda: 'lv_obj_add_state(id(light_slider), LV_STATE_DISABLED);'
+
+
+globals:
+  - id: remote_brightness
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  - id: current_page_index
+    type: int
+    initial_value: '0'
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+      CONFIG_COMPILER_OPTIMIZATION_PERF: y
+      CONFIG_FREERTOS_UNICORE: n
+      CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH: "4096"
+      CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES: "3"
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: "yRI2xTIg/1y9ssYb3rC9jUArkG8G52sC0M4SUaPyV6o="
+
+
+ota:
+  - platform: esphome
+    password: "20d095beb2c1882ce47a255316d5aadb"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Matouchai28-Company"
+    password: "88888888"
+
+
+
+captive_portal:
+
+output:
+  - platform: ledc
+    pin:
+      number: GPIO45
+      ignore_strapping_warning: true
+    frequency: 20000hz
+    id: lcd_pwm
+    
+light:
+  - platform: monochromatic
+    name: "lcd pwm"
+    output: lcd_pwm
+    id: lcd_backlight
+    restore_mode: ALWAYS_ON
+
+spi:
+  - id: display_spi
+    clk_pin: GPIO48
+    mosi_pin: GPIO13
+
+i2c:
+  - id: touch_i2c
+    sda: GPIO39
+    scl: GPIO38
+    scan: False
+
+font:
+  # - file: "gfonts://Roboto"
+  #   id: my_font
+  #   size: 20
+  # - file: "gfonts://Roboto"
+  #   id: small_font
+  #   size: 16
+  - file: "fonts/fa-solid-900.ttf"
+    id: fontawesome_16
+    size: 16
+    glyphs: [
+      "\uF053",  # <
+      "\uF054",  # >
+      "\uF015",  # home
+      "\uF1EB",  # wifi
+    ]
+  - file: "fonts/weathericons-regular-webfont.ttf"
+    id: weather_font
+    size: 24
+    glyphs: [
+      "\uF055",  # Temperature
+      "\uF07A",  # Wind
+      "\uF063",  # dust
+    ]
+  # - file: "fonts/materialdesignicons-webfont.ttf"
+  #   id: material_font
+  #   size: 32
+  #   glyphs: [
+  #     "\U000F05A9", # wifi
+  #     "\U000F05AA", # no wifi
+  #     "\U000F10C2", # temperature
+  #     "\U000F058E", # humidity
+  #     "\U000F1B5A", # dust
+  #     "\U000F0141", # left
+  #     "\U000F0142", # right
+  #     "\U000F02DC", # home
+  #   ]
+
+# display:
+#   - platform: ili9xxx
+#     id: tft_display
+#     model: st7789v
+#     spi_id: display_spi
+#     cs_pin: GPIO40
+#     dc_pin: GPIO21
+#     # reset_pin: GPIO4 
+#     data_rate: 40MHz
+#     dimensions:
+#       width: 240
+#       height: 320
+#     transform:
+#       swap_xy: False
+#       mirror_x: False
+#       mirror_y: False
+#     color_order: BGR
+#     invert_colors: True
+#     auto_clear_enabled: false
+#     update_interval: never
+
+display:
+  - platform: mipi_spi
+    id: tft_display
+    model: st7789v
+    # spi_id: display_spi
+    cs_pin: GPIO40
+    dc_pin: GPIO21
+    # reset_pin: GPIO4 
+    data_rate: 40MHz
+    dimensions:
+      width: 240
+      height: 320
+    transform:
+      swap_xy: False
+      mirror_x: False
+      mirror_y: False
+    color_order: BGR
+    invert_colors: True
+    auto_clear_enabled: false
+    update_interval: never
+
+
+lvgl:
+  style_definitions:
+    - id: header_footer
+      bg_color: 0x2F8CD8
+      bg_grad_color: 0x005782
+      bg_grad_dir: VER
+      bg_opa: COVER
+      border_opa: TRANSP
+      radius: 0
+      pad_all: 0
+      pad_row: 0
+      pad_column: 0
+      border_color: 0x0077b3
+      text_color: 0xFFFFFF
+      width: 100%
+      height: 30
+    - id: background_style
+      bg_color: 0xeceff4
+      bg_opa: COVER
+  top_layer:
+    widgets:
+      - label:
+          text_font: fontawesome_16
+          text: "\uF1EB"
+          id: lbl_hastatus
+          align: top_right
+          x: -2
+          y: 7
+          text_align: right
+          text_color: 0xFFFFFF
+      - buttonmatrix:
+          align: bottom_mid
+          styles: header_footer
+          pad_all: 0
+          outline_width: 0
+          id: top_layer
+          items:
+            styles: header_footer
+          rows:
+            - buttons:
+              - id: page_prev
+                text: "\uF053"
+                on_press:
+                  then:
+                    # lvgl.page.previous:
+                    script.execute: go_prev_page
+              - id: page_home
+                text: "\uF015"
+                on_press:
+                  then:
+                    lvgl.page.show: main_page
+              - id: page_next
+                text: "\uF054"
+                on_press:
+                  then:
+                    # lvgl.page.next:
+                    # lvgl.page.show: pm25_page
+                    script.execute: go_next_page
+  pages:
+    - id: ui_page
+      styles: background_style
+      widgets:
+        - arc:
+            x: 20
+            y: 50
+            id: arc_temperature
+            value: 0
+            height: 200
+            width: 200
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            change_rate: 5
+            start_angle: 90
+            end_angle: 270
+        - label:
+            id: arc_temperature_icon_label
+            x: 133
+            y: 230
+            text_font: weather_font
+            text: "\uF055"
+            # text_font: material_font
+            # text: "\U000F10C2"
+        - label:
+            id: arc_temperature_label
+            x: 133
+            y: 47
+            # text_font: weather_font
+            text: N/A
+        - arc:
+            x: 50
+            y: 80
+            id: arc_humidity
+            value: 0
+            height: 140
+            width: 140
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            change_rate: 5
+            start_angle: 90
+            end_angle: 270
+        - label:
+            id: arc_humidity_icon_label
+            x: 133
+            y: 195
+            text_font: weather_font
+            text: "\uF07A"
+            # text_font: material_font
+            # text: "\U000F058E"
+        - label:
+            id: arc_humidity_label
+            x: 133
+            y: 77
+            text: N/A
+        - arc:
+            id: arc_pm25
+            x: 80
+            y: 110
+            min_value: 0
+            max_value: 100
+            adjustable: false
+            change_rate: 5
+            start_angle: 90
+            end_angle: 270
+            value: 0
+            height: 80
+            width: 80
+        - label:
+            id: arc_pm25_icon_label
+            x: 133
+            y: 165
+            text_font: weather_font
+            text: "\uF063"
+            # text_font: material_font
+            # text: "\U000F1B5A"
+        - label:
+            id: arc_pm25_label
+            x: 133
+            y: 107
+            text: N/A
+    - id: main_page # Default page
+      widgets:
+        - switch:
+            id: toggle_switch
+            x: 100
+            # y: 10
+            y: 180
+            width: 50
+            height: 25
+            on_value:
+              - if:
+                  condition:
+                    lambda: 'return x;'
+                  then:
+                    - logger.log: "Kitchen light ON"
+                    - homeassistant.action:
+                        action: fan.turn_on
+                        data:
+                          entity_id: ${remote_fan_entity_id}
+                    - lvgl.label.update:
+                        id: brightness_label
+                        text: !lambda |-
+                          char buffer[5];
+                          snprintf(buffer, sizeof(buffer), "%d%%", id(remote_brightness));
+                          return buffer;   
+                    - lvgl.slider.update:
+                        id: light_slider
+                        value: !lambda 'return id(remote_brightness);'
+                    - lambda: 'lv_obj_clear_state(id(light_slider), LV_STATE_DISABLED);'
+                  else:
+                    - logger.log: "Kitchen light OFF"
+                    - homeassistant.action:
+                        action: fan.turn_off
+                        data:
+                          entity_id: ${remote_fan_entity_id}
+                    - lvgl.label.update:
+                        id: brightness_label
+                        text: "0%"
+                    - lvgl.slider.update:
+                        id: light_slider
+                        value: 0
+                    - lambda: 'lv_obj_add_state(id(light_slider), LV_STATE_DISABLED);'
+        - slider:
+            id: light_slider
+            x: 53
+            y: 240
+            width: 150
+            height: 20
+            value: 0
+            min_value: 0
+            max_value: 100
+            # on_... : # Add event handlers
+            on_value:
+              - lvgl.label.update:
+                  id: brightness_label
+                  text: !lambda |-
+                    char buffer[5];
+                    snprintf(buffer, sizeof(buffer), "%.0f%%", x);
+                    return buffer;   
+            on_release:
+              - if:
+                  condition:
+                    lambda: 'return lv_obj_get_state(id(toggle_switch)) & LV_STATE_CHECKED;'
+                  then:
+                    - homeassistant.action:
+                        action: fan.set_percentage
+                        data:
+                          entity_id: ${remote_fan_entity_id}
+                          percentage: !lambda 'return (int)(x);'
+        - label:
+            id: brightness_label
+            x: 110
+            y: 210
+            text: 0%
+        - label:
+            id: ha_weather_temperature_label
+            x: 20
+            y: 50
+            text: "Temp: 0°C"
+        - label:
+            id: ha_weather_humidity_label
+            x: 20
+            y: 80
+            text: "Humi: 0%"
+        - label:
+            id: ha_weather_windspeed_label
+            x: 20
+            y: 120
+            text: "Wind: 0.0 m/s"
+        - label:
+            id: ha_weather_pm25_label
+            x: 20
+            y: 150
+            text: "PM2.5: 0.0 ug/m3"
+
+  on_idle:
+    timeout: !lambda "return (id(display_timeout).state * 1000);"
+    then:
+      - logger.log: "LVGL is idle, pausing and turning off backlight."
+      - lvgl.pause:
+      - light.turn_off:
+          id: lcd_backlight
+          transition_length: 5s
+
+touchscreen:
+  - platform: gt911
+    display: tft_display
+    id: touch_screen
+    update_interval: 50ms
+    reset_pin: GPIO18
+    interrupt_pin: GPIO14
+    i2c_id: touch_i2c
+    transform:
+      swap_xy: False
+      mirror_x: False
+      mirror_y: False
+    on_release: 
+      - if: 
+          condition: 
+            lvgl.is_paused:
+          then: 
+            - logger.log: "LVGL resuming"
+            - light.turn_on: lcd_backlight
+            - lvgl.resume:
+            - lvgl.widget.redraw:
+
+number:
+  - platform: template
+    name: LVGL Screen timeout
+    optimistic: true
+    id: display_timeout
+    unit_of_measurement: "s"
+    initial_value: 45
+    restore_value: true
+    min_value: 10
+    max_value: 180
+    step: 5
+    mode: box
+
+sensor:
+  - platform: homeassistant
+    id: remote_light_brightness
+    entity_id: ${remote_fan_entity_id}
+    attribute: percentage
+    internal: True
+    on_value:
+      - lambda: |-
+          id(remote_brightness) = (int)(x);
+      - if:
+          condition:
+            lambda: 'return lv_obj_get_state(id(toggle_switch)) & LV_STATE_CHECKED;'
+          then:
+            - lvgl.slider.update:
+                id: light_slider
+                value: !lambda 'return x;'
+
+
+  - platform: homeassistant
+    id: remote_temperature
+    entity_id: sensor.ha_weather_temperature
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: ha_weather_temperature_label
+          text: !lambda |-
+            char buffer[20];
+            snprintf(buffer, sizeof(buffer), "Temp: %.1f°C", x);
+            return buffer;
+      - lvgl.label.update:
+          id: arc_temperature_label
+          text: !lambda 'return std::to_string((int)std::round(x)) + "°C";'
+      - lvgl.arc.update:
+          id: arc_temperature
+          value: !lambda 'return (int)x;'
+  - platform: homeassistant
+    id: remote_humidity
+    entity_id: sensor.ha_weather_humidity
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: ha_weather_humidity_label
+          text: !lambda |-
+            char buffer[20];
+            snprintf(buffer, sizeof(buffer), "Humi: %.1f%%", x);
+            return buffer;
+      - lvgl.label.update:
+          id: arc_humidity_label
+          text: !lambda 'return std::to_string((int)std::round(x)) + "%";'
+      - lvgl.arc.update:
+          id: arc_humidity
+          value: !lambda 'return (int)x;'
+  - platform: homeassistant
+    id: remote_windspeed
+    entity_id: sensor.ha_weather_wind_speed
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: ha_weather_windspeed_label
+          text: !lambda |-
+            char buffer[20];
+            snprintf(buffer, sizeof(buffer), "Wind: %.2f m/s", x);
+            return buffer;
+  - platform: homeassistant
+    id: remote_pm25
+    entity_id: sensor.ha_weather_pm2_5_concentration
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: ha_weather_pm25_label
+          text: !lambda |-
+            char buffer[20];
+            snprintf(buffer, sizeof(buffer), "PM2.5: %.1f ug/m3", x);
+            return buffer;
+      - lvgl.label.update:
+          id: arc_pm25_label
+          text: !lambda 'return std::to_string((int)std::round(x)) + "ug/m3";'
+      - lvgl.arc.update:
+          id: arc_pm25
+          value: !lambda 'return (int)x;'
+
+      
+
+binary_sensor:
+  - platform: homeassistant
+    id: remote_light_state
+    entity_id: ${remote_fan_entity_id}
+    internal: true
+    on_state:
+      - if:
+          condition:
+            binary_sensor.is_on: remote_light_state
+          then:
+            - lvgl.switch.update:
+                id: toggle_switch
+                state:
+                  checked: true
+            - lvgl.label.update:
+                id: brightness_label
+                text: !lambda |-
+                  char buffer[5];
+                  snprintf(buffer, sizeof(buffer), "%.f%%", id(remote_brightness));
+                  return buffer;
+            - lvgl.slider.update:
+                id: light_slider
+                value: !lambda 'return id(remote_brightness);'
+            - lambda: 'lv_obj_clear_state(id(light_slider), LV_STATE_DISABLED);'
+          else:
+            - lvgl.switch.update:
+                id: toggle_switch
+                state:
+                  checked: false
+            - lvgl.label.update:
+                id: brightness_label
+                text: "0%"
+            - lvgl.slider.update:
+                id: light_slider
+                value: 0
+            - lambda: 'lv_obj_add_state(id(light_slider), LV_STATE_DISABLED);'
+
+script:
+  - id: go_next_page
+    then:
+      - lambda: |-
+          int current = id(current_page_index);
+          int next = (current + 1) % 3;
+          id(current_page_index) = next;
+      - lvgl.page.next:
+  
+  - id: go_prev_page
+    then:
+      - lambda: |-
+          int current = id(current_page_index);
+          int prev = (current - 1 + 3) % 3;
+          id(current_page_index) = prev;
+      - lvgl.page.previous:
